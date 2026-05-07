@@ -8,6 +8,7 @@ namespace mkr1kpz
     {
         public abstract string OuterHtml();
         public abstract string InnerHtml();
+        public abstract void Accept(IHtmlVisitor visitor);
 
         public virtual IEnumerator<LightNode> GetEnumerator()
         {
@@ -32,6 +33,13 @@ namespace mkr1kpz
 
         public override string OuterHtml() => _text;
         public override string InnerHtml() => _text;
+        
+        public string GetText() => _text;
+
+        public override void Accept(IHtmlVisitor visitor)
+        {
+            visitor.VisitTextNode(this);
+        }
     }
 
     public enum DisplayType { Block, Inline }
@@ -100,6 +108,15 @@ namespace mkr1kpz
             }
 
             return $"<{Tag}{classes}>{InnerHtml()}</{Tag}>";
+        }
+
+        public override void Accept(IHtmlVisitor visitor)
+        {
+            visitor.VisitElementNode(this);
+            foreach (var child in _children)
+            {
+                child.Accept(visitor);
+            }
         }
     }
 
@@ -289,6 +306,45 @@ namespace mkr1kpz
         }
     }
 
+    public interface IHtmlVisitor
+    {
+        void VisitElementNode(LightElementNode node);
+        void VisitTextNode(LightTextNode node);
+    }
+
+    public class HtmlTextExtractorVisitor : IHtmlVisitor
+    {
+        public string ExtractedText { get; private set; } = "";
+
+        public void VisitElementNode(LightElementNode node)
+        {
+            // Just traverse, text will be collected in VisitTextNode
+        }
+
+        public void VisitTextNode(LightTextNode node)
+        {
+            ExtractedText += node.GetText() + " ";
+        }
+    }
+
+    public class ElementCounterVisitor : IHtmlVisitor
+    {
+        public Dictionary<string, int> TagCounts { get; } = new();
+
+        public void VisitElementNode(LightElementNode node)
+        {
+            if (TagCounts.ContainsKey(node.Tag))
+                TagCounts[node.Tag]++;
+            else
+                TagCounts[node.Tag] = 1;
+        }
+
+        public void VisitTextNode(LightTextNode node)
+        {
+            // Do not count text nodes as tags
+        }
+    }
+
     class Program
     {
         static void Main(string[] args)
@@ -360,6 +416,21 @@ namespace mkr1kpz
             Console.WriteLine("Changing state to Collapsed...");
             stateDiv.NodeState = new CollapsedNodeState();
             Console.WriteLine(stateDiv.OuterHtml());
+
+            Console.WriteLine("\n--- Visitor Pattern ---");
+            var textExtractor = new HtmlTextExtractorVisitor();
+            var elementCounter = new ElementCounterVisitor();
+
+            tree.Accept(textExtractor);
+            tree.Accept(elementCounter);
+
+            Console.WriteLine($"Extracted Text from whole tree: {textExtractor.ExtractedText.Trim()}");
+            
+            Console.WriteLine("Tag Counts:");
+            foreach (var kvp in elementCounter.TagCounts)
+            {
+                Console.WriteLine($"- <{kvp.Key}>: {kvp.Value}");
+            }
         }
     }
 }
