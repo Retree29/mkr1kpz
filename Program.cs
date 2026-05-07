@@ -77,6 +77,12 @@ namespace mkr1kpz
         }
         public virtual void RemoveChild(LightNode node) => _children.Remove(node);
 
+        public virtual void RemoveClass(string cssClass)
+        {
+            _cssClasses.Remove(cssClass);
+            OnClassListApplied();
+        }
+
         public override string InnerHtml() => string.Concat(_children.Select(c => c.OuterHtml()));
 
         public override string OuterHtml()
@@ -200,6 +206,62 @@ namespace mkr1kpz
         public void Dispose() { }
     }
 
+    public interface ICommand
+    {
+        void Execute();
+        void Undo();
+    }
+
+    public class AddChildCommand : ICommand
+    {
+        private readonly LightElementNode _parent;
+        private readonly LightNode _child;
+
+        public AddChildCommand(LightElementNode parent, LightNode child)
+        {
+            _parent = parent;
+            _child = child;
+        }
+
+        public void Execute() => _parent.AddChild(_child);
+        public void Undo() => _parent.RemoveChild(_child);
+    }
+
+    public class AddClassCommand : ICommand
+    {
+        private readonly LightElementNode _element;
+        private readonly string _cssClass;
+
+        public AddClassCommand(LightElementNode element, string cssClass)
+        {
+            _element = element;
+            _cssClass = cssClass;
+        }
+
+        public void Execute() => _element.AddClass(_cssClass);
+        public void Undo() => _element.RemoveClass(_cssClass);
+    }
+
+    public class HtmlCommandManager
+    {
+        private readonly Stack<ICommand> _history = new();
+
+        public void ExecuteCommand(ICommand command)
+        {
+            command.Execute();
+            _history.Push(command);
+        }
+
+        public void Undo()
+        {
+            if (_history.Count > 0)
+            {
+                var command = _history.Pop();
+                command.Undo();
+            }
+        }
+    }
+
     class Program
     {
         static void Main(string[] args)
@@ -240,6 +302,25 @@ namespace mkr1kpz
                 if (bfs.Current is LightElementNode el) Console.WriteLine($"Found element: {el.Tag}");
                 else Console.WriteLine("Found text node");
             }
+
+            Console.WriteLine("\n--- Command Pattern ---");
+            var manager = new HtmlCommandManager();
+            var cmdDiv = new LightElementNode("div", DisplayType.Block, ClosingType.WithClosingTag);
+            
+            Console.WriteLine("Executing: Add class 'primary'");
+            manager.ExecuteCommand(new AddClassCommand(cmdDiv, "primary"));
+            
+            var span = new LightElementNode("span", DisplayType.Inline, ClosingType.WithClosingTag);
+            Console.WriteLine("Executing: Add child <span>");
+            manager.ExecuteCommand(new AddChildCommand(cmdDiv, span));
+            
+            Console.WriteLine($"HTML before undo: {cmdDiv.OuterHtml()}");
+
+            manager.Undo();
+            Console.WriteLine($"HTML after 1st undo: {cmdDiv.OuterHtml()}");
+            
+            manager.Undo();
+            Console.WriteLine($"HTML after 2nd undo: {cmdDiv.OuterHtml()}");
         }
     }
 }
