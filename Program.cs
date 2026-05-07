@@ -45,11 +45,14 @@ namespace mkr1kpz
         protected List<string> _cssClasses = new();
         protected List<LightNode> _children = new();
 
+        public INodeState NodeState { get; set; }
+
         public LightElementNode(string tag, DisplayType displayType, ClosingType closingType)
         {
             _tag = tag;
             _displayType = displayType;
             _closingType = closingType;
+            NodeState = new ExpandedNodeState();
             OnCreated();
         }
 
@@ -83,7 +86,10 @@ namespace mkr1kpz
             OnClassListApplied();
         }
 
-        public override string InnerHtml() => string.Concat(_children.Select(c => c.OuterHtml()));
+        public override string InnerHtml() => NodeState.RenderInnerHtml(this);
+
+        // Utility to get base InnerHtml
+        public string BaseInnerHtml() => string.Concat(_children.Select(c => c.OuterHtml()));
 
         public override string OuterHtml()
         {
@@ -262,6 +268,27 @@ namespace mkr1kpz
         }
     }
 
+    public interface INodeState
+    {
+        string RenderInnerHtml(LightElementNode node);
+    }
+
+    public class ExpandedNodeState : INodeState
+    {
+        public string RenderInnerHtml(LightElementNode node)
+        {
+            return node.BaseInnerHtml();
+        }
+    }
+
+    public class CollapsedNodeState : INodeState
+    {
+        public string RenderInnerHtml(LightElementNode node)
+        {
+            return "...";
+        }
+    }
+
     class Program
     {
         static void Main(string[] args)
@@ -321,6 +348,18 @@ namespace mkr1kpz
             
             manager.Undo();
             Console.WriteLine($"HTML after 2nd undo: {cmdDiv.OuterHtml()}");
+
+            Console.WriteLine("\n--- State Pattern ---");
+            var stateDiv = new LightElementNode("div", DisplayType.Block, ClosingType.WithClosingTag);
+            stateDiv.AddChild(new LightTextNode("This is some text inside the div"));
+            stateDiv.AddChild(new LightElementNode("p", DisplayType.Block, ClosingType.WithClosingTag));
+            
+            Console.WriteLine("Expanded State:");
+            Console.WriteLine(stateDiv.OuterHtml());
+            
+            Console.WriteLine("Changing state to Collapsed...");
+            stateDiv.NodeState = new CollapsedNodeState();
+            Console.WriteLine(stateDiv.OuterHtml());
         }
     }
 }
