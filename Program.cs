@@ -39,7 +39,13 @@ namespace mkr1kpz
             _tag = tag;
             _displayType = displayType;
             _closingType = closingType;
+            OnCreated();
         }
+
+        // Template method hooks
+        protected virtual void OnCreated() { }
+        protected virtual void OnInserted(LightNode node) { }
+        protected virtual void OnClassListApplied() { }
 
         public virtual int ChildrenCount => _children.Count;
         public virtual string Tag => _tag;
@@ -47,8 +53,17 @@ namespace mkr1kpz
         public virtual ClosingType Closing => _closingType;
         public IReadOnlyList<LightNode> Children => _children;
 
-        public virtual void AddClass(string cssClass) => _cssClasses.Add(cssClass);
-        public virtual void AddChild(LightNode node) => _children.Add(node);
+        public virtual void AddClass(string cssClass)
+        {
+            _cssClasses.Add(cssClass);
+            OnClassListApplied();
+        }
+
+        public virtual void AddChild(LightNode node)
+        {
+            _children.Add(node);
+            OnInserted(node);
+        }
         public virtual void RemoveChild(LightNode node) => _children.Remove(node);
 
         public override string InnerHtml() => string.Concat(_children.Select(c => c.OuterHtml()));
@@ -65,17 +80,42 @@ namespace mkr1kpz
         }
     }
 
+    // Example of using the Template Method
+    public class CustomElementNode : LightElementNode
+    {
+        public CustomElementNode(string tag, DisplayType displayType, ClosingType closingType) 
+            : base(tag, displayType, closingType) { }
+
+        protected override void OnCreated()
+        {
+            Console.WriteLine($"[Hook] Element <{_tag}> was created.");
+        }
+
+        protected override void OnInserted(LightNode node)
+        {
+            Console.WriteLine($"[Hook] Node inserted into <{_tag}>.");
+        }
+
+        protected override void OnClassListApplied()
+        {
+            Console.WriteLine($"[Hook] Classes applied to <{_tag}>: {string.Join(", ", _cssClasses)}");
+        }
+    }
+
     class Program
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("MKR 1 - Design Patterns in LightHTML");
+            Console.WriteLine("MKR 1 - Design Patterns in LightHTML\n");
             
-            var div = new LightElementNode("div", DisplayType.Block, ClosingType.WithClosingTag);
-            div.AddClass("container");
-            div.AddChild(new LightTextNode("Hello, world!"));
+            Console.WriteLine("--- Template Method ---");
+            var customDiv = new CustomElementNode("div", DisplayType.Block, ClosingType.WithClosingTag);
+            customDiv.AddClass("container");
+            customDiv.AddClass("highlight");
+            customDiv.AddChild(new LightTextNode("Text inside custom node"));
             
-            Console.WriteLine(div.OuterHtml());
+            Console.WriteLine("\nFinal HTML:");
+            Console.WriteLine(customDiv.OuterHtml());
         }
     }
 }
