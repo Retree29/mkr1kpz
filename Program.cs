@@ -4,10 +4,21 @@ using System.Linq;
 
 namespace mkr1kpz
 {
-    public abstract class LightNode
+    public abstract class LightNode : IEnumerable<LightNode>
     {
         public abstract string OuterHtml();
         public abstract string InnerHtml();
+
+        public virtual IEnumerator<LightNode> GetEnumerator()
+        {
+            // Default to Depth First Search
+            return new HtmlDepthIterator(this);
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
     }
 
     public class LightTextNode : LightNode
@@ -102,6 +113,93 @@ namespace mkr1kpz
         }
     }
 
+    public class HtmlDepthIterator : IEnumerator<LightNode>
+    {
+        private readonly LightNode _root;
+        private LightNode _current;
+        private Stack<LightNode> _stack;
+
+        public HtmlDepthIterator(LightNode root)
+        {
+            _root = root;
+            Reset();
+        }
+
+        public LightNode Current => _current;
+
+        object System.Collections.IEnumerator.Current => Current;
+
+        public bool MoveNext()
+        {
+            if (_stack.Count == 0) return false;
+
+            _current = _stack.Pop();
+
+            if (_current is LightElementNode element)
+            {
+                // Push children in reverse order so they are processed left-to-right
+                for (int i = element.Children.Count - 1; i >= 0; i--)
+                {
+                    _stack.Push(element.Children[i]);
+                }
+            }
+
+            return true;
+        }
+
+        public void Reset()
+        {
+            _stack = new Stack<LightNode>();
+            _stack.Push(_root);
+            _current = null;
+        }
+
+        public void Dispose() { }
+    }
+
+    public class HtmlBreadthIterator : IEnumerator<LightNode>
+    {
+        private readonly LightNode _root;
+        private LightNode _current;
+        private Queue<LightNode> _queue;
+
+        public HtmlBreadthIterator(LightNode root)
+        {
+            _root = root;
+            Reset();
+        }
+
+        public LightNode Current => _current;
+
+        object System.Collections.IEnumerator.Current => Current;
+
+        public bool MoveNext()
+        {
+            if (_queue.Count == 0) return false;
+
+            _current = _queue.Dequeue();
+
+            if (_current is LightElementNode element)
+            {
+                foreach (var child in element.Children)
+                {
+                    _queue.Enqueue(child);
+                }
+            }
+
+            return true;
+        }
+
+        public void Reset()
+        {
+            _queue = new Queue<LightNode>();
+            _queue.Enqueue(_root);
+            _current = null;
+        }
+
+        public void Dispose() { }
+    }
+
     class Program
     {
         static void Main(string[] args)
@@ -116,6 +214,32 @@ namespace mkr1kpz
             
             Console.WriteLine("\nFinal HTML:");
             Console.WriteLine(customDiv.OuterHtml());
+
+            Console.WriteLine("\n--- Iterator Pattern ---");
+            var tree = new LightElementNode("html", DisplayType.Block, ClosingType.WithClosingTag);
+            var head = new LightElementNode("head", DisplayType.Block, ClosingType.WithClosingTag);
+            var body = new LightElementNode("body", DisplayType.Block, ClosingType.WithClosingTag);
+            
+            tree.AddChild(head);
+            tree.AddChild(body);
+            
+            body.AddChild(new LightElementNode("h1", DisplayType.Block, ClosingType.WithClosingTag));
+            body.AddChild(new LightElementNode("p", DisplayType.Block, ClosingType.WithClosingTag));
+
+            Console.WriteLine("Depth-First Search (Default foreach):");
+            foreach (var node in tree)
+            {
+                if (node is LightElementNode el) Console.WriteLine($"Found element: {el.Tag}");
+                else Console.WriteLine("Found text node");
+            }
+
+            Console.WriteLine("\nBreadth-First Search:");
+            var bfs = new HtmlBreadthIterator(tree);
+            while (bfs.MoveNext())
+            {
+                if (bfs.Current is LightElementNode el) Console.WriteLine($"Found element: {el.Tag}");
+                else Console.WriteLine("Found text node");
+            }
         }
     }
 }
